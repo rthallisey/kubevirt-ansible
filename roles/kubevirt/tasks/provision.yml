@@ -74,8 +74,17 @@
     - "{{ default_vm_templates }}"
   when: cluster == "openshift" and "{{ byo_vm_templates.results | selectattr('stat.exists') | map(attribute='item') | list | length == 0 }}"
 
-- name: Create default VM templates in OpenShift Namespace
-  shell: "oc apply -f /tmp/{{ item }}.yaml -n openshift"
+- name: Check for existing VM templates in the OpenShift Namespace
+  shell: "oc get -f /tmp/{{ item }}.yaml -n openshift"
   with_items:
     - "{{ default_vm_templates }}"
-  when: cluster == "openshift"
+  when: cluster == "openshift" and "{{ byo_vm_templates.results | selectattr('stat.exists') | map(attribute='item') | list | length == 0 }}"
+  register: existing
+  ignore_errors: yes
+
+# Nested list of items is item.item
+- name: Create default VM templates in OpenShift Namespace
+  shell: "oc apply -f /tmp/{{ item.item }}.yaml -n openshift"
+  when: cluster == "openshift" and "{{ item.rc }} == 1"
+  with_items:
+    - "{{ existing.results }}"
