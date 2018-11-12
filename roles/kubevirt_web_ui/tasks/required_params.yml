@@ -21,9 +21,14 @@
 # - the openshift console is mandatory part of OKD installation
 
 - name: Discover public_master_hostname from openshift console deployment
-  shell: "{{ openshift_client_binary }} get configmap console-config -n openshift-console -o jsonpath='{.data}' | grep 'masterPublicURL:' | sed 's/^.*masterPublicURL: *http.*:\\/\\///g'"
+  shell: "{{ openshift_client_binary }} get configmap webconsole-config -n openshift-web-console -o jsonpath='{.data.webconsole-config\\.yaml}' | jq '.clusterInfo.masterPublicURL' | sed 's/http.*:\\/\\///g' | xargs echo | sed 's/\\:.*//'"
   register: parsedMasterPublicURL
   when: public_master_hostname | default("") | string == ""
+
+- debug:
+    var: parsedMasterPublicURL
+
+#  shell: "{{ openshift_client_binary }} get configmap console-config -n openshift-console -o jsonpath='{.data}' | grep 'masterPublicURL:' | sed 's/^.*masterPublicURL: *http.*:\\/\\///g'"
 
 - set_fact: public_master_hostname="{{ parsedMasterPublicURL.stdout }}"
   when: public_master_hostname | default("") | string == "" and parsedMasterPublicURL.stdout != ""
@@ -33,12 +38,18 @@
   register: parsedBaseAddress
   when: openshift_master_default_subdomain | default("") | string == ""
 
-- set_fact: openshift_master_default_subdomain="{{ parsedBaseAddress.stdout }}"
-  when: openshift_master_default_subdomain | default("") | string == "" and parsedBaseAddress.stdout != ""
+- debug:
+    var: public_master_hostname
+
+- set_fact: openshift_master_default_subdomain="{{ public_master_hostname }}"
+  when: openshift_master_default_subdomain | default("") | string == ""
+
+# - set_fact: openshift_master_default_subdomain="{{ parsedBaseAddress.stdout }}"
+#   when: openshift_master_default_subdomain | default("") | string == "" and parsedBaseAddress.stdout != ""
 
 #### Set derived constants
 
-- set_fact: kubevirt_web_ui_hostname="kubevirt-web-ui.{{openshift_master_default_subdomain}}"
+- set_fact: kubevirt_web_ui_hostname="kubevirt-web-ui.{{openshift_master_default_subdomain}}.nip.io"
 
 # Mimic openshift-ansible
 - set_fact: openshift_master_public_console_url="https://{{ public_master_hostname }}/console" # Example: https://master.mycluster.com:8443/console
